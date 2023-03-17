@@ -22,6 +22,7 @@ int getpid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
+void set_scheduler(enum SchedulerChoice);
 
 // ulib.c
 int stat(const char*, struct stat*);

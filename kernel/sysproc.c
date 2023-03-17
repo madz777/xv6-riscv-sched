@@ -89,3 +89,12 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+uint64
+sys_set_scheduler(void)
+{
+    int sc;
+    argint(0, &sc);
+    set_scheduler(sc);
+    return 0;
+}

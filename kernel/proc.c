@@ -145,6 +145,7 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
+  p->start_time = ticks;
 
   return p;
 }
@@ -441,35 +442,84 @@ wait(uint64 addr)
 //  - swtch to start running that process.
 //  - eventually that process transfers control
 //    via swtch back to the scheduler.
-void
-scheduler(void)
+
+struct proc*
+scheduler_rr(struct cpu *c)
 {
-  struct proc *p;
-  struct cpu *c = mycpu();
-  
-  c->proc = 0;
-  for(;;){
-    // Avoid deadlock by ensuring that devices can interrupt.
-    intr_on();
-
+    struct proc *p = 0, *best_p = 0;
     for(p = proc; p < &proc[NPROC]; p++) {
-      acquire(&p->lock);
-      if(p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        c->proc = p;
-        swtch(&c->context, &p->context);
-
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
-      }
-      release(&p->lock);
+        acquire(&p->lock);
+        if(p->state == RUNNABLE) {
+            best_p = p;
+        }
+        release(&p->lock);
+        if(best_p) break;
     }
-  }
+    return best_p;
 }
+
+struct proc*
+scheduler_fifo(struct cpu *c)
+{
+    struct proc *p;
+    int min_time = ticks;
+    struct proc *min_proc = 0;
+    for(p = proc; p < &proc[NPROC]; p++) {
+        acquire(&p->lock);
+        if(p->state == RUNNABLE) {
+            if(p->start_time <= min_time) {
+                min_time = p->start_time;
+                min_proc = p;
+            }
+        }
+        release(&p->lock);
+    }
+    return min_proc;
+}
+
+enum SchedulerChoice scheduler_choice = RR;
+
+void set_scheduler(enum SchedulerChoice sc) {
+    scheduler_choice = sc;
+}
+
+void scheduler(void) {
+    struct cpu *c = mycpu();
+
+    c->proc = 0;
+    for(;;){
+        // Avoid deadlock by ensuring that devices can interrupt.
+        intr_on();
+        struct proc *p = 0;
+        switch(scheduler_choice) {
+            case RR:
+                p = scheduler_rr(c);
+                break;
+            case FIFO:
+                p = scheduler_fifo(c);
+                break;
+            default:
+                p = scheduler_rr(c);
+        }
+        if(p) {
+            acquire(&p->lock);
+            if(p->state == RUNNABLE) {
+                // Switch to chosen process.  It is the process's job
+                // to release its lock and then reacquire it
+                // before jumping back to us.
+                p->state = RUNNING;
+                c->proc = p;
+                swtch(&c->context, &p->context);
+
+                // Process is done running for now.
+                // It should have changed its p->state before coming back.
+                c->proc = 0;
+            }
+            release(&p->lock);
+        }
+    }
+}
+
 
 // Switch to scheduler.  Must hold only p->lock
 // and have changed proc->state. Saves and restores
@@ -677,7 +727,7 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
-    printf("%d %s %s", p->pid, state, p->name);
+    printf("pid %d state %s name %s start_time %d", p->pid, state, p->name, p->start_time);
     printf("\n");
   }
 }
