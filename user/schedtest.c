@@ -71,13 +71,13 @@ void run(int processes, enum SchedulerChoice sc) {
     for(int i = 0; i < processes; i++) {
         // make sure some processes are created a bit later than others
         // (don't sleep() because we don't want anyone else scheduled)
-        for(int j = 0; j < 1000000; j++) {}
+        for(int j = 0; j < 100000000; j++) {}
         printf("Forking #%d...\n", i);
         if(fork() == 0) {
             int pid = getpid();
             if(i < processes/3) {
                 printf("Starting sieve %d...\n", pid);
-                sieve_of_eratosthenes((i+1)*5000000);
+                sieve_of_eratosthenes((i+1)*10000000);
                 printf("Ending sieve %d.\n", pid);
             } else if(i < 2*processes/3) {
                 printf("Starting IO %d...\n", pid);
@@ -122,6 +122,9 @@ int main(int argc, char **argv) {
     int processes = atoi(argv[1]);
     printf("Running %d processes\n", processes);
 
+    printf("With scheduler RR\n");
+    run(processes, RR);
+
     printf("With scheduler FIFO\n");
     run(processes, FIFO);
 
@@ -132,9 +135,6 @@ int main(int argc, char **argv) {
     printf("With scheduler FAIR\n");
     run(processes, FAIR);
     */
-
-    printf("With scheduler RR\n");
-    run(processes, RR);
 
     exit(0);
 }

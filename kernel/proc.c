@@ -145,7 +145,7 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
-  p->start_time = ticks;
+  p->ctime = ticks;
 
   return p;
 }
@@ -444,18 +444,24 @@ wait(uint64 addr)
 //    via swtch back to the scheduler.
 
 struct proc*
-scheduler_rr(struct cpu *c)
+scheduler_rr(struct cpu *c, struct proc *last_p)
 {
-    struct proc *p = 0, *best_p = 0;
-    for(p = proc; p < &proc[NPROC]; p++) {
-        acquire(&p->lock);
-        if(p->state == RUNNABLE) {
-            best_p = p;
-        }
-        release(&p->lock);
-        if(best_p) break;
+    struct proc *p = 0;
+    struct proc *start_p = proc;
+    if(last_p) {
+        start_p = last_p+1;
     }
-    return best_p;
+    for(;;) {
+        for(p = start_p; p < &proc[NPROC]; p++) {
+            acquire(&p->lock);
+            if(p->state == RUNNABLE) {
+                release(&p->lock);
+                return p;
+            }
+            release(&p->lock);
+        }
+        start_p = proc; // restart from beginning
+    }
 }
 
 struct proc*
@@ -467,8 +473,8 @@ scheduler_fifo(struct cpu *c)
     for(p = proc; p < &proc[NPROC]; p++) {
         acquire(&p->lock);
         if(p->state == RUNNABLE) {
-            if(p->start_time <= min_time) {
-                min_time = p->start_time;
+            if(p->ctime <= min_time) {
+                min_time = p->ctime;
                 min_proc = p;
             }
         }
@@ -487,21 +493,23 @@ void scheduler(void) {
     struct cpu *c = mycpu();
 
     c->proc = 0;
+    struct proc *last_p = 0;
     for(;;){
         // Avoid deadlock by ensuring that devices can interrupt.
         intr_on();
         struct proc *p = 0;
         switch(scheduler_choice) {
             case RR:
-                p = scheduler_rr(c);
+                p = scheduler_rr(c, last_p);
                 break;
             case FIFO:
                 p = scheduler_fifo(c);
                 break;
             default:
-                p = scheduler_rr(c);
+                p = scheduler_rr(c, last_p);
         }
         if(p) {
+            last_p = p;
             acquire(&p->lock);
             if(p->state == RUNNABLE) {
                 // Switch to chosen process.  It is the process's job
@@ -727,7 +735,7 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
-    printf("pid %d state %s name %s start_time %d", p->pid, state, p->name, p->start_time);
+    printf("pid %d state %s name %s ctime %d", p->pid, state, p->name, p->ctime);
     printf("\n");
   }
 }
