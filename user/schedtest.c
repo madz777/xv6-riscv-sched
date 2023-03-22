@@ -37,7 +37,7 @@ void sieve_of_eratosthenes(int n) {
 
 void heavy_io() {
     char *fname = "/data";
-    for(int repeat = 0; repeat < 50; repeat++) {
+    for(int repeat = 0; repeat < 15; repeat++) {
         int fd = open(fname, O_RDWR|O_CREATE);
         char data[100]; // arbitrary data
         for(int i = 0; i < 30; i++) {
@@ -49,12 +49,12 @@ void heavy_io() {
 
 void heavy_io_with_sieve() {
     char *fname = "/data";
-    for(int repeat = 0; repeat < 20; repeat++) {
+    for(int repeat = 0; repeat < 5; repeat++) {
         int fd = open(fname, O_RDWR|O_CREATE);
         char data[100]; // arbitrary data
-        for(int i = 0; i < 30; i++) {
+        for(int i = 0; i < 20; i++) {
             write(fd, data, 100);
-            sieve_of_eratosthenes((i+1)*10000);
+            sieve_of_eratosthenes((i+1)*1000);
         }
         close(fd);
     }
@@ -71,13 +71,15 @@ void run(int processes, enum SchedulerChoice sc) {
     for(int i = 0; i < processes; i++) {
         // make sure some processes are created a bit later than others
         // (don't sleep() because we don't want anyone else scheduled)
-        for(int j = 0; j < 100000000; j++) {}
+        for(int j = 0; j < 10000000; j++) {}
         printf("Forking #%d...\n", i);
         if(fork() == 0) {
             int pid = getpid();
             if(i < processes/3) {
                 printf("Starting sieve %d...\n", pid);
-                sieve_of_eratosthenes((i+1)*10000000);
+                for(int k = 0; k < 50; k++) {
+                    sieve_of_eratosthenes((i+1)*1000000);
+                }
                 printf("Ending sieve %d.\n", pid);
             } else if(i < 2*processes/3) {
                 printf("Starting IO %d...\n", pid);

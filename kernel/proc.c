@@ -508,8 +508,8 @@ void scheduler(void) {
             default:
                 p = scheduler_rr(c, last_p);
         }
+        last_p = p;
         if(p) {
-            last_p = p;
             acquire(&p->lock);
             if(p->state == RUNNABLE) {
                 // Switch to chosen process.  It is the process's job
