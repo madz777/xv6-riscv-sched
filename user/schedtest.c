@@ -134,6 +134,7 @@ int main(int argc, char **argv) {
     printf("With scheduler LIFO\n");
     run(processes, LIFO);
 
+    
     printf("With scheduler FAIR\n");
     run(processes, FAIR);
     */

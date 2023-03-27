@@ -124,6 +124,8 @@ allocproc(void)
 found:
   p->pid = allocpid();
   p->state = USED;
+  p->ctime = ticks;
+  p->rtime = 0;
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -145,7 +147,7 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
-  p->ctime = ticks;
+  p->start_time = ticks;
 
   return p;
 }
@@ -483,6 +485,40 @@ scheduler_fifo(struct cpu *c)
     return min_proc;
 }
 
+struct proc* scheduler_lifo(struct cpu *c) {
+	struct proc *p;
+	int max_time = 0;
+	struct proc *max_proc = 0;
+	for (p = proc; p < &proc[NPROC]; p++) {
+		acquire(&p->lock);
+		if (p->state == RUNNABLE) {
+			if (p->ctime >= max_time) {
+				max_time = p->start_time;
+				max_proc = p;
+			}
+		}
+		release(&p->lock);
+	}
+	return max_proc;
+}
+
+struct proc* scheduler_fair(struct cpu *c) {
+	struct proc *p;
+	int time = ticks;
+	struct proc *fair_proc = 0;
+	for (p=proc; p <&proc[NPROC]; p++) {
+		acquire(&p->lock);
+		if (p->state=RUNNABLE) {
+			if (p->rtime <= time) {
+				time = p->run_time;
+				fair_proc = p;
+			}
+		}
+		release(&p->lock);
+	}
+	return fair_proc;
+}
+
 enum SchedulerChoice scheduler_choice = RR;
 
 void set_scheduler(enum SchedulerChoice sc) {
@@ -707,35 +743,5 @@ either_copyin(void *dst, int user_src, uint64 src, uint64 len)
   } else {
     memmove(dst, (char*)src, len);
     return 0;
-  }
-}
-
-// Print a process listing to console.  For debugging.
-// Runs when user types ^P on console.
-// No lock to avoid wedging a stuck machine further.
-void
-procdump(void)
-{
-  static char *states[] = {
-  [UNUSED]    "unused",
-  [USED]      "used",
-  [SLEEPING]  "sleep ",
-  [RUNNABLE]  "runble",
-  [RUNNING]   "run   ",
-  [ZOMBIE]    "zombie"
-  };
-  struct proc *p;
-  char *state;
-
-  printf("\n");
-  for(p = proc; p < &proc[NPROC]; p++){
-    if(p->state == UNUSED)
-      continue;
-    if(p->state >= 0 && p->state < NELEM(states) && states[p->state])
-      state = states[p->state];
-    else
-      state = "???";
-    printf("pid %d state %s name %s ctime %d", p->pid, state, p->name, p->ctime);
-    printf("\n");
   }
 }
