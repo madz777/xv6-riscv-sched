@@ -124,8 +124,6 @@ allocproc(void)
 found:
   p->pid = allocpid();
   p->state = USED;
-  p->ctime = ticks;
-  p->rtime = 0;
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -172,6 +170,8 @@ freeproc(struct proc *p)
   p->killed = 0;
   p->xstate = 0;
   p->state = UNUSED;
+}
+
 }
 
 // Create a user page table for a given process, with no user memory,
@@ -493,7 +493,7 @@ struct proc* scheduler_lifo(struct cpu *c) {
 		acquire(&p->lock);
 		if (p->state == RUNNABLE) {
 			if (p->ctime >= max_time) {
-				max_time = p->start_time;
+				max_time = p->ctime;
 				max_proc = p;
 			}
 		}
@@ -541,6 +541,12 @@ void scheduler(void) {
             case FIFO:
                 p = scheduler_fifo(c);
                 break;
+	    case LIFO:
+		p = scheduler_lifo(c);
+		break;
+	    case FAIR:
+		p = scheduler_fair(c);
+		break;
             default:
                 p = scheduler_rr(c, last_p);
         }
@@ -731,17 +737,3 @@ either_copyout(int user_dst, uint64 dst, void *src, uint64 len)
   }
 }
 
-// Copy from either a user address, or kernel address,
-// depending on usr_src.
-// Returns 0 on success, -1 on error.
-int
-either_copyin(void *dst, int user_src, uint64 src, uint64 len)
-{
-  struct proc *p = myproc();
-  if(user_src){
-    return copyin(p->pagetable, dst, src, len);
-  } else {
-    memmove(dst, (char*)src, len);
-    return 0;
-  }
-}
